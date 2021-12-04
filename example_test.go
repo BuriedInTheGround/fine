@@ -3,7 +3,7 @@ package fike_test
 import (
 	"fmt"
 
-	"github.com/BuriedInTheGround/fike"
+	"interrato.dev/fike"
 )
 
 func ExampleMachine() {

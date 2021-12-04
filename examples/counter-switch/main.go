@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/BuriedInTheGround/fike"
+	"interrato.dev/fike"
 )
 
 const maxRuns int = 50000

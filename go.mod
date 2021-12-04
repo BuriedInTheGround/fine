@@ -1,3 +1,3 @@
-module github.com/BuriedInTheGround/fike
+module interrato.dev/fike
 
 go 1.17
