@@ -70,8 +70,8 @@ func (m *FSM) State() string {
 	return m.current
 }
 
-// AddOrReplace allows to add a new state with its associated transitions. If a
-// state with the same name is already present in the FSM a non-nil error is
+// Add allows to add a new state with its associated transitions. If a state
+// with the same name is already present in the FSM a non-nil error is
 // returned.
 func (m *FSM) Add(state string, transitions Transitions) error {
 	if m.Exists(state) {
