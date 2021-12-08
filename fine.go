@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // Transitions is a mapping between events (names of actions) and actions.
@@ -45,7 +46,20 @@ type FSM struct {
 	states  States
 }
 
-var mu sync.RWMutex
+var (
+	mu sync.RWMutex
+
+	lastSubKey  int32
+	subscribers map[int32]func(string)
+)
+
+func init() {
+	atomic.StoreInt32(&lastSubKey, 0)
+
+	mu.Lock()
+	subscribers = make(map[int32]func(string))
+	mu.Unlock()
+}
 
 // Machine instatiate a new FSM.
 //
@@ -74,6 +88,21 @@ func (m *FSM) State() string {
 	defer mu.RUnlock()
 
 	return m.current
+}
+
+// States returns a slice with all the possible states of the FSM.
+//
+// Note that the order is not guaranteed.
+func (m *FSM) States() []string {
+	var states []string
+
+	mu.RLock()
+	for state := range m.states {
+		states = append(states, state)
+	}
+	mu.RUnlock()
+
+	return states
 }
 
 // Add allows to add a new state with its associated transitions. If a state
@@ -169,6 +198,9 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 		// the current state, and finally execute the @enter lifecycle action.
 		m.do("@exit", metadata...)
 		m.current = newState
+		for _, callback := range subscribers {
+			callback(m.current)
+		}
 		m.do("@enter", metadata...)
 	}
 
@@ -203,4 +235,24 @@ func (m *FSM) do(action string, args ...interface{}) string {
 	}
 
 	return m.current
+}
+
+// Subscribe allows subscribing to state changes with a callback function. The
+// FSM will call the callback function with the new state as a parameter every
+// time the state changes.
+//
+// An unsubscribe function is returned.
+func (m *FSM) Subscribe(callback func(state string)) func() {
+	key := atomic.AddInt32(&lastSubKey, 1)
+
+	mu.Lock()
+	subscribers[key] = callback
+	callback(m.current)
+	mu.Unlock()
+
+	return func() {
+		mu.Lock()
+		delete(subscribers, key)
+		mu.Unlock()
+	}
 }
