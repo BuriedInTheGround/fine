@@ -1,3 +1,3 @@
-module interrato.dev/fike
+module interrato.dev/fine
 
 go 1.17

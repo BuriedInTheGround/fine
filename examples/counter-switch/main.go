@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"interrato.dev/fike"
+	"interrato.dev/fine"
 )
 
 const maxRuns int = 50000
@@ -21,7 +21,7 @@ func main() {
 	}
 
 	// Initialize the switch.
-	lightSwitch := fike.Machine("off", fike.States{
+	lightSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": toggleOn},
 		"on":  {"toggle": "off"},
 	})

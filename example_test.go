@@ -1,13 +1,13 @@
-package fike_test
+package fine_test
 
 import (
 	"fmt"
 
-	"interrato.dev/fike"
+	"interrato.dev/fine"
 )
 
 func ExampleMachine() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 		"on":  {"toggle": "off"},
 	})
@@ -18,15 +18,15 @@ func ExampleMachine() {
 }
 
 func ExampleFSM_Add() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 	})
 
 	// Here I add the "on" state.
-	powerSwitch.Add("on", fike.Transitions{"toggle": "off"})
+	powerSwitch.Add("on", fine.Transitions{"toggle": "off"})
 
 	// Trying to add the "off" state, which is already in the FSM, will fail.
-	err := powerSwitch.Add("off", fike.Transitions{"smash": "broken"})
+	err := powerSwitch.Add("off", fine.Transitions{"smash": "broken"})
 	fmt.Println("Adding \"off\" failed?", err != nil)
 
 	powerSwitch.Do("toggle")
@@ -37,16 +37,16 @@ func ExampleFSM_Add() {
 }
 
 func ExampleFSM_AddOrReplace() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 	})
 
 	// Here I add the "on" state. No difference with Add() here.
-	powerSwitch.AddOrReplace("on", fike.Transitions{"toggle": "off"})
+	powerSwitch.AddOrReplace("on", fine.Transitions{"toggle": "off"})
 
 	// Here I try to add the "off" state, but, because it's already in the FSM,
 	// its transitions are now replaced.
-	powerSwitch.AddOrReplace("off", fike.Transitions{"smash": "broken"})
+	powerSwitch.AddOrReplace("off", fine.Transitions{"smash": "broken"})
 
 	// The "toggle" event for the "off" state does not exist anymore, so
 	// nothing changes even if I try to invoke "toggle" many times.
@@ -68,16 +68,16 @@ func ExampleFSM_AddOrReplace() {
 }
 
 func ExampleFSM_AddOrMerge() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 	})
 
 	// Here I add the "on" state. No difference with Add() here.
-	powerSwitch.AddOrMerge("on", fike.Transitions{"toggle": "off"})
+	powerSwitch.AddOrMerge("on", fine.Transitions{"toggle": "off"})
 
 	// Here I try to add the "off" state, which is already in the FSM, and the
 	// new transitions are merged to the old ones.
-	powerSwitch.AddOrMerge("off", fike.Transitions{"smash": "broken"})
+	powerSwitch.AddOrMerge("off", fine.Transitions{"smash": "broken"})
 
 	// So I can still toggle it.
 	powerSwitch.Do("toggle")
@@ -97,7 +97,7 @@ func ExampleFSM_AddOrMerge() {
 }
 
 func ExampleFSM_Do() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 		"on":  {"toggle": "off"},
 	})
@@ -113,7 +113,7 @@ func ExampleFSM_Do() {
 }
 
 func ExampleFSM_Do_lifecycle() {
-	powerSwitch := fike.Machine("off", fike.States{
+	powerSwitch := fine.Machine("off", fine.States{
 		"off": {
 			"@enter": func(metadata ...interface{}) {
 				fmt.Println("[INFO] from:", metadata[0])

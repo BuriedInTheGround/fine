@@ -1,4 +1,4 @@
-package fike
+package fine
 
 import (
 	"errors"

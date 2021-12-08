@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"interrato.dev/fike"
+	"interrato.dev/fine"
 )
 
 func main() {
-	lightSwitch := fike.Machine("off", fike.States{
+	lightSwitch := fine.Machine("off", fine.States{
 		"off": {"toggle": "on"},
 		"on":  {"toggle": "off"},
 	})
