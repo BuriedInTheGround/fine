@@ -3,6 +3,7 @@ package fine
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // Transitions is a mapping between events (names of actions) and actions.
@@ -44,6 +45,8 @@ type FSM struct {
 	states  States
 }
 
+var mu sync.RWMutex
+
 // Machine instatiate a new FSM.
 //
 // Note that the given initial state must exist inside states.
@@ -67,6 +70,9 @@ func Machine(initialState string, states States) *FSM {
 
 // State returns the current state of the FSM.
 func (m *FSM) State() string {
+	mu.RLock()
+	defer mu.RUnlock()
+
 	return m.current
 }
 
@@ -77,7 +83,11 @@ func (m *FSM) Add(state string, transitions Transitions) error {
 	if m.Exists(state) {
 		return fmt.Errorf("a state with name %q already exists", state)
 	}
+
+	mu.Lock()
 	m.states[state] = transitions
+	mu.Unlock()
+
 	return nil
 }
 
@@ -85,7 +95,9 @@ func (m *FSM) Add(state string, transitions Transitions) error {
 // state with the same name is already present in the FSM, its transitions will
 // be completely overwritten.
 func (m *FSM) AddOrReplace(state string, transitions Transitions) {
+	mu.Lock()
 	m.states[state] = transitions
+	mu.Unlock()
 }
 
 // AddOrMerge allows to add a new state with its associated transitions. If a
@@ -93,17 +105,24 @@ func (m *FSM) AddOrReplace(state string, transitions Transitions) {
 // be merged, keeping the newer ones in case of collisions.
 func (m *FSM) AddOrMerge(state string, transitions Transitions) {
 	if m.Exists(state) {
+		mu.Lock()
 		for k, v := range transitions {
 			m.states[state][k] = v
 		}
+		mu.Unlock()
 	} else {
+		mu.Lock()
 		m.states[state] = transitions
+		mu.Unlock()
 	}
 }
 
 // Exists returns whether the specified state is a possible state for the FSM.
 func (m *FSM) Exists(state string) bool {
+	mu.RLock()
 	_, ok := m.states[state]
+	mu.RUnlock()
+
 	return ok
 }
 
@@ -122,7 +141,9 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 	}
 
 	// Check for the existence of the requested action.
+	mu.RLock()
 	if _, ok := m.states[m.current][action]; !ok {
+		defer mu.RUnlock()
 		return "", fmt.Errorf(
 			"%q is not a valid action for the current state %q",
 			action, m.current,
@@ -131,6 +152,10 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 
 	// Execute the action, and evaluate what the new state will be.
 	newState := m.do(action, args...)
+	mu.RUnlock()
+
+	mu.Lock()
+	defer mu.Unlock()
 
 	// If doing the action changes the state, execute the transition.
 	if newState != m.current {
