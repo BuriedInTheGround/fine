@@ -15,29 +15,48 @@ import (
 //
 //     func()
 //
-//     func(...interface{})
+//     func(args ...interface{})
 //
 //     func() string
 //
-//     func(...interface{}) string
+//     func(args ...interface{}) string
 //
 // Trying to call an action that has a different type will panic.
 //
 // There are two special lifecycle functions, named "@enter" and "@exit",
 // executed on entering and exiting a state, respectively. It is not possible
-// to pass custom parameters to these functions. They receive four metadata
-// arguments:
+// to pass custom parameters to these functions. They receive an optional
+// Metadata object and an optional pointer to the FSM itself. Thus, the
+// possible types for lifecycle actions are the following, or nil.
 //
-//     from  (string): the previous state from which the transition started
-//     to    (string): the new state where the transition will end
-//     event (string): the name of the action that caused the transition
-//     args  ([]interface{}): the arguments that were passed to the action
+//     func()
+//
+//     func(this *FSM)
+//
+//     func(metadata Metadata)
+//
+//     func(this *FSM, metadata Metadata)
 type Transitions map[string]interface{}
 
 // States are mappings from states to Transitions.
 //
 // A state has type string.
 type States map[string]Transitions
+
+// Metadata holds the information about a transition.
+type Metadata struct {
+	// The previous state from which the transition started.
+	From string
+
+	// The new state where the transition will end.
+	To string
+
+	// The name of the action that caused the transition.
+	Event string
+
+	// The arguments that were passed to the action.
+	Args []interface{}
+}
 
 // FSM is a Finite State Machine that can be instantiated using the Machine
 // function.
@@ -77,7 +96,7 @@ func Machine(initialState string, states States) *FSM {
 	}
 
 	// Execute the first @enter lifecycle action on the initial state.
-	m.do("@enter", nil, m.current, nil, nil)
+	m.doLifecycle("@enter", Metadata{To: m.current})
 
 	return m
 }
@@ -188,20 +207,21 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 
 	// If doing the action changes the state, execute the transition.
 	if newState != m.current {
-		// Metadata contains the following four parts, indicated with their
-		// type.
-		//
-		// [from: string, to: string, action: string, args: []interface{}]
-		metadata := []interface{}{m.current, newState, action, args}
+		metadata := Metadata{
+			From:  m.current,
+			To:    newState,
+			Event: action,
+			Args:  args,
+		}
 
 		// Do the transition: execute the @exit lifecycle action, then update
 		// the current state, and finally execute the @enter lifecycle action.
-		m.do("@exit", metadata...)
+		m.doLifecycle("@exit", metadata)
 		m.current = newState
 		for _, callback := range subscribers {
 			callback(m.current)
 		}
-		m.do("@enter", metadata...)
+		m.doLifecycle("@enter", metadata)
 	}
 
 	return m.current, nil
@@ -235,6 +255,31 @@ func (m *FSM) do(action string, args ...interface{}) string {
 	}
 
 	return m.current
+}
+
+func (m *FSM) doLifecycle(action string, metadata Metadata) {
+	// Execute the action based on the action type.
+	switch lifecycle := m.states[m.current][action].(type) {
+	case nil:
+		return
+
+	case func():
+		lifecycle()
+
+	case func(*FSM):
+		lifecycle(m)
+
+	case func(Metadata):
+		lifecycle(metadata)
+
+	case func(*FSM, Metadata):
+		lifecycle(m, metadata)
+
+	default:
+		panic(fmt.Sprintf(
+			"invalid type for action %q on state %q", action, m.current,
+		))
+	}
 }
 
 // Subscribe allows subscribing to state changes with a callback function. The

@@ -115,17 +115,11 @@ func ExampleFSM_Do() {
 func ExampleFSM_Do_lifecycle() {
 	powerSwitch := fine.Machine("off", fine.States{
 		"off": {
-			"@enter": func(metadata ...interface{}) {
-				fmt.Println("[INFO] from:", metadata[0])
-				fmt.Println("[INFO] to:", metadata[1])
-				fmt.Println("[INFO] event:", metadata[2])
-				fmt.Println("[INFO] args:", metadata[3])
-			},
-			"@exit": func(metadata ...interface{}) {
-				fmt.Println("[INFO] from:", metadata[0])
-				fmt.Println("[INFO] to:", metadata[1])
-				fmt.Println("[INFO] event:", metadata[2])
-				fmt.Println("[INFO] args:", metadata[3])
+			"@exit": func(metadata fine.Metadata) {
+				fmt.Println("[INFO] from:", metadata.From)
+				fmt.Println("[INFO] to:", metadata.To)
+				fmt.Println("[INFO] event:", metadata.Event)
+				fmt.Println("[INFO] args:", metadata.Args)
 			},
 			"toggle": func(args ...interface{}) string {
 				message := args[0].(string)
@@ -145,13 +139,7 @@ func ExampleFSM_Do_lifecycle() {
 	fmt.Println("Toggling...")
 	powerSwitch.Do("toggle", "Shine, step into the light")
 	fmt.Println("Current FSM state:", powerSwitch.State())
-	powerSwitch.Do("toggle")
-	fmt.Println("Current FSM state:", powerSwitch.State())
 	// Output:
-	// [INFO] from: <nil>
-	// [INFO] to: off
-	// [INFO] event: <nil>
-	// [INFO] args: <nil>
 	// Current FSM state: off
 	// Toggling...
 	// message: "Shine, step into the light"
@@ -161,9 +149,36 @@ func ExampleFSM_Do_lifecycle() {
 	// [INFO] args: [Shine, step into the light]
 	// Finally, light!
 	// Current FSM state: on
-	// [INFO] from: on
-	// [INFO] to: off
-	// [INFO] event: toggle
-	// [INFO] args: []
+}
+
+func ExampleFSM_Subscribe() {
+	powerSwitch := fine.Machine("off", fine.States{
+		"off": {"toggle": "on"},
+		"on":  {"toggle": "off"},
+	})
+
+	onSubscribe := true
+	unsubscribe := powerSwitch.Subscribe(func(state string) {
+		if onSubscribe {
+			fmt.Printf("Subscribed with state set to %q\n", state)
+			onSubscribe = false
+		} else {
+			fmt.Printf("State just changed to %q\n", state)
+		}
+	})
+
+	powerSwitch.Do("toggle")
+	powerSwitch.Do("toggle")
+	powerSwitch.Do("toggle")
+
+	unsubscribe()
+
+	powerSwitch.Do("toggle")
+	fmt.Println("Current FSM state:", powerSwitch.State())
+	// Output:
+	// Subscribed with state set to "off"
+	// State just changed to "on"
+	// State just changed to "off"
+	// State just changed to "on"
 	// Current FSM state: off
 }
