@@ -63,21 +63,11 @@ type Metadata struct {
 type FSM struct {
 	current string
 	states  States
-}
 
-var (
 	mu sync.RWMutex
 
 	lastSubKey  int32
 	subscribers map[int32]func(string)
-)
-
-func init() {
-	atomic.StoreInt32(&lastSubKey, 0)
-
-	mu.Lock()
-	subscribers = make(map[int32]func(string))
-	mu.Unlock()
 }
 
 // Machine instatiate a new FSM.
@@ -91,9 +81,13 @@ func Machine(initialState string, states States) *FSM {
 
 	// Instantiate the FSM object.
 	m := &FSM{
-		current: initialState,
-		states:  states,
+		current:     initialState,
+		states:      states,
+		subscribers: make(map[int32]func(string)),
 	}
+
+	// Initialize the last subscriber key to zero.
+	atomic.StoreInt32(&m.lastSubKey, 0)
 
 	// Execute the first @enter lifecycle action on the initial state.
 	m.doLifecycle("@enter", Metadata{To: m.current})
@@ -103,8 +97,8 @@ func Machine(initialState string, states States) *FSM {
 
 // State returns the current state of the FSM.
 func (m *FSM) State() string {
-	mu.RLock()
-	defer mu.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	return m.current
 }
@@ -115,11 +109,11 @@ func (m *FSM) State() string {
 func (m *FSM) States() []string {
 	var states []string
 
-	mu.RLock()
+	m.mu.RLock()
 	for state := range m.states {
 		states = append(states, state)
 	}
-	mu.RUnlock()
+	m.mu.RUnlock()
 
 	return states
 }
@@ -132,9 +126,9 @@ func (m *FSM) Add(state string, transitions Transitions) error {
 		return fmt.Errorf("a state with name %q already exists", state)
 	}
 
-	mu.Lock()
+	m.mu.Lock()
 	m.states[state] = transitions
-	mu.Unlock()
+	m.mu.Unlock()
 
 	return nil
 }
@@ -143,9 +137,9 @@ func (m *FSM) Add(state string, transitions Transitions) error {
 // state with the same name is already present in the FSM, its transitions will
 // be completely overwritten.
 func (m *FSM) AddOrReplace(state string, transitions Transitions) {
-	mu.Lock()
+	m.mu.Lock()
 	m.states[state] = transitions
-	mu.Unlock()
+	m.mu.Unlock()
 }
 
 // AddOrMerge allows to add a new state with its associated transitions. If a
@@ -153,23 +147,23 @@ func (m *FSM) AddOrReplace(state string, transitions Transitions) {
 // be merged, keeping the newer ones in case of collisions.
 func (m *FSM) AddOrMerge(state string, transitions Transitions) {
 	if m.Exists(state) {
-		mu.Lock()
+		m.mu.Lock()
 		for k, v := range transitions {
 			m.states[state][k] = v
 		}
-		mu.Unlock()
+		m.mu.Unlock()
 	} else {
-		mu.Lock()
+		m.mu.Lock()
 		m.states[state] = transitions
-		mu.Unlock()
+		m.mu.Unlock()
 	}
 }
 
 // Exists returns whether the specified state is a possible state for the FSM.
 func (m *FSM) Exists(state string) bool {
-	mu.RLock()
+	m.mu.RLock()
 	_, ok := m.states[state]
-	mu.RUnlock()
+	m.mu.RUnlock()
 
 	return ok
 }
@@ -189,9 +183,9 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 	}
 
 	// Check for the existence of the requested action.
-	mu.RLock()
+	m.mu.RLock()
 	if _, ok := m.states[m.current][action]; !ok {
-		defer mu.RUnlock()
+		defer m.mu.RUnlock()
 		return "", fmt.Errorf(
 			"%q is not a valid action for the current state %q",
 			action, m.current,
@@ -200,10 +194,10 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 
 	// Execute the action, and evaluate what the new state will be.
 	newState := m.do(action, args...)
-	mu.RUnlock()
+	m.mu.RUnlock()
 
-	mu.Lock()
-	defer mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	// If doing the action changes the state, execute the transition.
 	if newState != m.current {
@@ -218,7 +212,7 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 		// the current state, and finally execute the @enter lifecycle action.
 		m.doLifecycle("@exit", metadata)
 		m.current = newState
-		for _, callback := range subscribers {
+		for _, callback := range m.subscribers {
 			callback(m.current)
 		}
 		m.doLifecycle("@enter", metadata)
@@ -288,16 +282,16 @@ func (m *FSM) doLifecycle(action string, metadata Metadata) {
 //
 // An unsubscribe function is returned.
 func (m *FSM) Subscribe(callback func(state string)) func() {
-	key := atomic.AddInt32(&lastSubKey, 1)
+	key := atomic.AddInt32(&m.lastSubKey, 1)
 
-	mu.Lock()
-	subscribers[key] = callback
+	m.mu.Lock()
+	m.subscribers[key] = callback
 	callback(m.current)
-	mu.Unlock()
+	m.mu.Unlock()
 
 	return func() {
-		mu.Lock()
-		delete(subscribers, key)
-		mu.Unlock()
+		m.mu.Lock()
+		delete(m.subscribers, key)
+		m.mu.Unlock()
 	}
 }
