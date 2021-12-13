@@ -3,6 +3,10 @@
 ## [Simple switch](simple-switch/main.go)
 A simple ON/OFF switch.
 
+## [Turnstile](turnstile/main.go)
+A simple turnstile, whose state diagram follows [this
+one](https://commons.wikimedia.org/wiki/File:Turnstile_state_machine_colored.svg).
+
 ## [Counter switch](counter-switch/main.go)
 An ON/OFF switch that counts how many times you turn it ON.
 
