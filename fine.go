@@ -12,14 +12,10 @@ import (
 // An action can have one of the following types, or nil.
 //
 //     string
-//
-//     func()
-//
-//     func(args ...interface{})
-//
 //     func() string
-//
 //     func(args ...interface{}) string
+//     func()
+//     func(args ...interface{})
 //
 // Trying to call an action that has a different type will panic.
 //
@@ -30,12 +26,12 @@ import (
 // possible types for lifecycle actions are the following, or nil.
 //
 //     func()
+//     func(this *fine.FSM)
+//     func(metadata fine.Metadata)
+//     func(this *fine.FSM, metadata fine.Metadata)
 //
-//     func(this *FSM)
-//
-//     func(metadata Metadata)
-//
-//     func(this *FSM, metadata Metadata)
+// Note: when using the *fine.FSM parameter, the code must run inside a
+// goroutine, or a deadlock would otherwise happen.
 type Transitions map[string]interface{}
 
 // States are mappings from states to Transitions.
@@ -72,7 +68,7 @@ type FSM struct {
 
 // Machine instatiate a new FSM.
 //
-// Note that the given initial state must exist inside states.
+// Note: the given initial state must exist inside states.
 func Machine(initialState string, states States) *FSM {
 	// Check for the initial state being present.
 	if _, ok := states[initialState]; !ok {
@@ -105,7 +101,7 @@ func (m *FSM) State() string {
 
 // States returns a slice with all the possible states of the FSM.
 //
-// Note that the order is not guaranteed.
+// Note: the order is not guaranteed.
 func (m *FSM) States() []string {
 	var states []string
 
@@ -175,7 +171,7 @@ func (m *FSM) Exists(state string) bool {
 // It is possible to pass arguments to the action. If the action isn't a
 // function or does not accept any parameter, the arguments will be ignored.
 //
-// Note that lifecycle actions cannot be manually executed.
+// Note: lifecycle actions cannot be manually executed.
 func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 	// Prohibit the execution of lifecycle actions.
 	if action == "@enter" || action == "@exit" {
