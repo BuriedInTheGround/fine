@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 )
 
-// Transitions is a mapping between events (names of actions) and actions.
+// Transitions is a mapping between events (or names of actions) and actions.
 //
 // An action can have one of the following types, or nil.
 //
@@ -36,7 +36,8 @@ type Transitions map[string]interface{}
 // A state has type string.
 type States map[string]Transitions
 
-// Metadata holds the information about a transition.
+// Metadata holds the information about a transition that changed the system
+// state.
 type Metadata struct {
 	// The previous state from which the transition started.
 	From string
@@ -44,14 +45,14 @@ type Metadata struct {
 	// The new state where the transition will end.
 	To string
 
-	// The name of the action that caused the transition.
+	// The name of the action that caused the system state change.
 	Event string
 
 	// The arguments that were passed to the action.
 	Args []interface{}
 }
 
-// FSM is a Finite State Machine that can be instantiated using the Machine
+// FSM is a finite-state machine that can be instantiated using the Machine
 // function.
 type FSM struct {
 	current string
@@ -63,9 +64,10 @@ type FSM struct {
 	subscribers map[int32]func(string)
 }
 
-// Machine instatiate a new FSM.
+// Machine instatiate a new FSM with the given initial state and the given set
+// of possible states.
 //
-// Note: the given initial state must exist inside states.
+// Note: the given initial state must be within the given possible states.
 func Machine(initialState string, states States) *FSM {
 	// Check for the initial state being present.
 	if _, ok := states[initialState]; !ok {
@@ -305,8 +307,9 @@ func (m *FSM) doLifecycle(action string, metadata Metadata) {
 }
 
 // Subscribe allows subscribing to state changes with a callback function. The
-// FSM will call the callback function with the new state as a parameter every
-// time the state changes.
+// callback function will be executed every time the state changes and receives
+// the new state as a parameter. The callback function also runs when
+// subscribing and will receive the current state.
 //
 // An unsubscribe function is returned.
 func (m *FSM) Subscribe(callback func(state string)) func() {
