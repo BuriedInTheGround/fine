@@ -33,7 +33,7 @@ Note: a *transition* does not necessarily imply a change of the system state.
 ### Actions
 
 An *action* is the result of an *event* happening on the depicted system. An
-*action* can have one of the following types.
+*action* can have one of the following types, or `nil`.
 - `string`
 - `func() string`
 - `func(args ...interface{}) string`
@@ -67,7 +67,7 @@ transition to a different state started;
 - the `To` field with type `string`: the new *state* where the transition
 will end;
 - the `Event` field with type `string`: the name of the *action* that caused
-the state change;
+the system state change;
 - the `Args` field with type `[]interface{}`: the parameters that were passed
 to the *action*.
 
@@ -115,3 +115,10 @@ The turnstile is now locked.
 The turnstile is now unlocked.
 The turnstile is now locked.
 ```
+
+For more code examples see the [examples](examples) folder.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file
+for the full license text.
