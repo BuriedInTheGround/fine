@@ -8,9 +8,10 @@ import (
 	"interrato.dev/fine"
 )
 
-const maxRuns int = 50000
-
-const lightbulbLifetime int = 10000
+const (
+	maxRuns           = 50000
+	lightbulbLifetime = 10000
+)
 
 func main() {
 	// Increment the counter every time the switch turns to ON.

@@ -8,7 +8,7 @@ import (
 	"interrato.dev/fine"
 )
 
-const blinkPace = 100 * time.Millisecond
+const blinkPace = 300 * time.Millisecond
 
 func main() {
 	blink := make(chan bool, 1)
@@ -19,14 +19,14 @@ func main() {
 		"on":  {"toggle": "off"},
 	})
 
-	// Add the @enter state for every state of the LED: if blinking is turned
-	// on, wait some time, toggle, and feedback the blinking state.
+	// Add the @enter state for every state of the LED: wait some time, then,
+	// if blinking is turned on, toggle and feedback the blinking state.
 	for _, state := range led.States() {
 		led.AddOrMerge(state, fine.Transitions{
 			"@enter": func(this *fine.FSM) {
 				go func() {
+					time.Sleep(blinkPace)
 					if feedback := <-blink; feedback {
-						time.Sleep(blinkPace)
 						this.Do("toggle")
 						blink <- feedback
 					}
@@ -37,27 +37,17 @@ func main() {
 
 	// Initialize the switch for toggling the blinking state of the LED.
 	blinkSwitch := fine.Machine("off", fine.States{
-		"off": {
-			"toggle": "on",
-		},
+		"off": {"toggle": "on"},
 		"on": {
 			"@enter": func() {
-				fmt.Println("Blinking is turned on.")
-				go func() {
-					blink <- true
-				}()
-				// Here, do a first manual toggle so that the feedback loop
-				// starts.
+				// First, toggle manually so that the feedback loop starts.
 				led.Do("toggle")
+				// Then, activate the blinking.
+				blink <- true
 			},
 			"@exit": func() {
+				// Disactivate the blinking.
 				blink <- false
-				go func() {
-					// Here, wait for the last LED toggling before signaling
-					// that blinking is now turned off.
-					time.Sleep(blinkPace)
-					fmt.Println("Blinking is turned off.")
-				}()
 			},
 			"toggle": "off",
 		},
@@ -67,6 +57,10 @@ func main() {
 		fmt.Printf("The led is %s\n", strings.ToUpper(state))
 	})
 
+	unsubSwitch := blinkSwitch.Subscribe(func(state string) {
+		fmt.Printf("Blinking is now turned %s.\n", state)
+	})
+
 	// Toggle the switch three times: blinking on, then off, then on again.
 	for i := 0; i < 3; i++ {
 		blinkSwitch.Do("toggle")
@@ -74,5 +68,30 @@ func main() {
 	}
 
 	unsubLed()
+	unsubSwitch()
 	fmt.Println("Exiting...")
+
+	// Output:
+	// The led is OFF
+	// Blinking is now turned off.
+	// Blinking is now turned on.
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// Blinking is now turned off.
+	// Blinking is now turned on.
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// The led is ON
+	// The led is OFF
+	// Exiting...
 }

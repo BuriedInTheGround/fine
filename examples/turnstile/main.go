@@ -26,4 +26,9 @@ func main() {
 	turnstile.Do("push")
 
 	unsubscribe()
+
+	// Output:
+	// The turnstile is now locked.
+	// The turnstile is now unlocked.
+	// The turnstile is now locked.
 }
