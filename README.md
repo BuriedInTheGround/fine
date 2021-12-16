@@ -58,9 +58,6 @@ Two *lifecycle actions* are available, characterized by the `@enter` and
 `@exit` *events*. These *actions* run when the system enters a new state and
 when the system leaves a state, respectively.
 
-Important note: when using the `this *fine.FSM` parameter, the code **must**
-run inside a goroutine, or a deadlock would otherwise happen.
-
 ##### Metadata
 
 The `fine.Metadata` type is simply a struct which contains the following

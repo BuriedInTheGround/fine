@@ -29,9 +29,6 @@ import (
 //     func(this *fine.FSM)
 //     func(metadata fine.Metadata)
 //     func(this *fine.FSM, metadata fine.Metadata)
-//
-// Note: when using the *fine.FSM parameter, the code must run inside a
-// goroutine, or a deadlock would otherwise happen.
 type Transitions map[string]interface{}
 
 // States are mappings from states to Transitions.
@@ -187,55 +184,81 @@ func (m *FSM) Do(action string, args ...interface{}) (string, error) {
 			action, m.current,
 		)
 	}
+	m.mu.RUnlock()
 
 	// Execute the action, and evaluate what the new state will be.
 	newState := m.do(action, args...)
+
+	// Evaluate if the action changed the state.
+	var stateChanged bool
+	m.mu.RLock()
+	if newState != m.current {
+		stateChanged = true
+	}
 	m.mu.RUnlock()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// If doing the action changes the state, execute the transition.
-	if newState != m.current {
+	// If the state changed, execute the state transition.
+	if stateChanged {
+		m.mu.RLock()
 		metadata := Metadata{
 			From:  m.current,
 			To:    newState,
 			Event: action,
 			Args:  args,
 		}
+		m.mu.RUnlock()
 
-		// Do the transition: execute the @exit lifecycle action, then update
-		// the current state, and finally execute the @enter lifecycle action.
+		// Execute the @exit lifecycle action.
 		m.doLifecycle("@exit", metadata)
+
+		// Update the current state.
+		m.mu.Lock()
 		m.current = newState
+		m.mu.Unlock()
+
+		// Notify the state change to all subscribers.
+		m.mu.RLock()
 		for _, callback := range m.subscribers {
-			callback(m.current)
+			callback(newState)
 		}
+		m.mu.RUnlock()
+
+		// And finally, execute the @enter lifecycle action.
 		m.doLifecycle("@enter", metadata)
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	return m.current, nil
 }
 
 func (m *FSM) do(action string, args ...interface{}) string {
 	// Execute the action based on the action type.
+	m.mu.RLock()
 	switch next := m.states[m.current][action].(type) {
 	case nil:
+		defer m.mu.RUnlock()
 		return m.current
 
 	case string:
+		m.mu.RUnlock()
 		return next
 
 	case func():
+		m.mu.RUnlock()
 		next()
 
 	case func(...interface{}):
+		m.mu.RUnlock()
 		next(args...)
 
 	case func() string:
+		m.mu.RUnlock()
 		return next()
 
 	case func(...interface{}) string:
+		m.mu.RUnlock()
 		return next(args...)
 
 	default:
@@ -244,25 +267,34 @@ func (m *FSM) do(action string, args ...interface{}) string {
 		))
 	}
 
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.current
 }
 
 func (m *FSM) doLifecycle(action string, metadata Metadata) {
 	// Execute the action based on the action type.
+	m.mu.RLock()
 	switch lifecycle := m.states[m.current][action].(type) {
 	case nil:
+		m.mu.RUnlock()
 		return
 
 	case func():
+		m.mu.RUnlock()
 		lifecycle()
 
 	case func(*FSM):
+		m.mu.RUnlock()
 		lifecycle(m)
 
 	case func(Metadata):
+		m.mu.RUnlock()
 		lifecycle(metadata)
 
 	case func(*FSM, Metadata):
+		m.mu.RUnlock()
 		lifecycle(m, metadata)
 
 	default:
