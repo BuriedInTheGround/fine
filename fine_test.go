@@ -3,6 +3,7 @@ package fine_test
 import (
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -334,14 +335,25 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	// Concurrency test (run with `-race`).
+	var wg sync.WaitGroup
+	go func() {
+		for {
+			time.Sleep(time.Duration(rand.Intn(50)) * time.Microsecond)
+			machine.Do("next")
+		}
+	}()
 	for i := 0; i < concurrentRuns; i++ {
-		go func() func() {
+		wg.Add(1)
+		go func() {
 			unsubscribe := machine.Subscribe(func(state string) {
-				go func() string {
-					return state
-				}()
+				_ = state
 			})
-			return unsubscribe
+			go func() {
+				time.Sleep(time.Duration(rand.Intn(200)) * time.Microsecond)
+				unsubscribe()
+				wg.Done()
+			}()
 		}()
 	}
+	wg.Wait()
 }
